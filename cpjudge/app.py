@@ -1,9 +1,9 @@
 """Flask application factory for CPJudge."""
 import os
-from flask import Flask
+from flask import Flask, redirect, render_template, request, url_for
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from flask_login import LoginManager
+from flask_login import LoginManager, current_user
 from flask_wtf.csrf import CSRFProtect
 
 from cpjudge.config import config_by_name
@@ -11,6 +11,7 @@ from cpjudge.models import User, db
 
 login_manager = LoginManager()
 login_manager.login_view = "auth.login"
+login_manager.login_message = "Please log in to access this page."
 login_manager.login_message_category = "info"
 
 csrf = CSRFProtect()
@@ -37,7 +38,42 @@ def create_app(config_name: str | None = None) -> Flask:
     csrf.init_app(app)
     limiter.init_app(app)
 
-    # Register blueprints (will be populated in later phases)
-    # e.g., auth, teacher, student
+    # Register blueprints
+    from cpjudge.auth import auth_bp
+    from cpjudge.auth.decorators import register_auth_hooks
+
+    app.register_blueprint(auth_bp)
+    register_auth_hooks(app)
+
+    # Root route
+    @app.route("/")
+    def index():
+        if not current_user.is_authenticated:
+            return redirect(url_for("auth.login"))
+        if current_user.force_password_change:
+            return redirect(url_for("auth.change_password"))
+        if current_user.is_teacher:
+            try:
+                return redirect(url_for("teacher.dashboard"))
+            except Exception:
+                return redirect(url_for("auth.profile"))
+        else:
+            try:
+                return redirect(url_for("student.dashboard"))
+            except Exception:
+                return redirect(url_for("auth.profile"))
+
+    # Error handlers
+    @app.errorhandler(403)
+    def forbidden_error(e):
+        return render_template("errors/403.html", error=e), 403
+
+    @app.errorhandler(404)
+    def not_found_error(e):
+        return render_template("errors/404.html", error=e), 404
+
+    @app.errorhandler(429)
+    def ratelimit_error(e):
+        return render_template("errors/429.html", error=e), 429
 
     return app
