@@ -15,6 +15,7 @@ from cpjudge.models import (
     ensure_utc,
     utc_now,
 )
+from cpjudge.utils.timezone import format_pkt
 from cpjudge.app import limiter
 from cpjudge.student import student_bp
 from cpjudge.student.forms import CodeSubmissionForm
@@ -204,14 +205,14 @@ def assignment_problem(assignment_id: int, problem_id: int | None = None):
 
     if is_not_open:
         can_submit = False
-        notice_message = f"This assignment opens on {assignment.open_date.strftime('%Y-%m-%d %H:%M UTC')}."
+        notice_message = f"This assignment opens on {format_pkt(assignment.open_date, '%Y-%m-%d %H:%M PKT')}."
         notice_type = "secondary"
     elif is_past_due and not assignment.allow_late:
         can_submit = False
-        notice_message = f"This assignment closed on {assignment.due_date.strftime('%Y-%m-%d %H:%M UTC')}. Late submissions are not accepted."
+        notice_message = f"This assignment closed on {format_pkt(assignment.due_date, '%Y-%m-%d %H:%M PKT')}. Late submissions are not accepted."
         notice_type = "danger"
     elif is_past_due and assignment.allow_late:
-        notice_message = f"Deadline has passed ({assignment.due_date.strftime('%Y-%m-%d %H:%M UTC')}). Late submission penalty of {assignment.late_penalty_percent}% will be applied."
+        notice_message = f"Deadline has passed ({format_pkt(assignment.due_date, '%Y-%m-%d %H:%M PKT')}). Late submission penalty of {assignment.late_penalty_percent}% will be applied."
         notice_type = "warning"
 
     # Check max attempts limit for this specific problem

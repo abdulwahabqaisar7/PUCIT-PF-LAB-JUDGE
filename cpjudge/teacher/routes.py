@@ -24,6 +24,7 @@ from cpjudge.models import (
     db,
     utc_now,
 )
+from cpjudge.utils.timezone import format_pkt, now_pkt
 from cpjudge.teacher import teacher_bp
 from cpjudge.teacher.forms import (
     AssignmentForm,
@@ -1119,7 +1120,7 @@ def class_gradebook_csv(class_id: int):
     )
     db.session.commit()
 
-    filename = f"gradebook_{classroom.code}_{utc_now().strftime('%Y%m%d_%H%M')}.csv"
+    filename = f"gradebook_{classroom.code}_{now_pkt().strftime('%Y%m%d_%H%M')}.csv"
     return Response(
         output.getvalue(),
         mimetype="text/csv",
@@ -1249,7 +1250,7 @@ def assignment_gradebook_csv(assignment_id: int):
         "Final Score",
         "Max Score",
         "Verdict",
-        "Last Submitted At (UTC)",
+        "Last Submitted At (PKT)",
     ])
 
     problems = assignment.problems
@@ -1280,7 +1281,7 @@ def assignment_gradebook_csv(assignment_id: int):
             final_score_str = f"{round(total_final, 1)}" if has_sub else "0.0"
             max_score_str = f"{assignment.total_marks}"
             verdict_str = "AC" if any(s.verdict == "AC" for s in subs) else (subs[0].verdict if subs else "Unsubmitted")
-            submitted_at_str = subs[0].created_at.strftime('%Y-%m-%d %H:%M:%S') if subs else "N/A"
+            submitted_at_str = format_pkt(subs[0].created_at, '%Y-%m-%d %H:%M:%S') if subs else "N/A"
         else:
             best_score = None
             best_sub = None
@@ -1296,7 +1297,7 @@ def assignment_gradebook_csv(assignment_id: int):
             final_score_str = f"{best_score.final_score}" if best_score else "0.0"
             max_score_str = f"{assignment.total_marks}"
             verdict_str = best_sub.verdict if best_sub else "Unsubmitted"
-            submitted_at_str = best_sub.created_at.strftime('%Y-%m-%d %H:%M:%S') if best_sub else "N/A"
+            submitted_at_str = format_pkt(best_sub.created_at, '%Y-%m-%d %H:%M:%S') if best_sub else "N/A"
 
         writer.writerow([
             student.roll_no or "N/A",
@@ -1321,7 +1322,7 @@ def assignment_gradebook_csv(assignment_id: int):
     )
     db.session.commit()
 
-    filename = f"gradebook_assignment_{assignment.id}_{utc_now().strftime('%Y%m%d_%H%M')}.csv"
+    filename = f"gradebook_assignment_{assignment.id}_{now_pkt().strftime('%Y%m%d_%H%M')}.csv"
     return Response(
         output.getvalue(),
         mimetype="text/csv",

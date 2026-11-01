@@ -3,7 +3,8 @@ FROM python:3.11-slim-bookworm
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     LANG=C.UTF-8 \
-    PYTHONPATH=/app
+    PYTHONPATH=/app \
+    TZ=Asia/Karachi
 
 # Install compilers, bubblewrap, procps, and utilities
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -15,6 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libcap2-bin \
     curl \
     ca-certificates \
+    tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 # Create unprivileged judge sandbox user

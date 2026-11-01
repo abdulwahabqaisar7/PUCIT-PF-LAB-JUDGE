@@ -42,6 +42,10 @@ class Config:
     USE_BWRAP = os.environ.get("USE_BWRAP", "false").lower() in ("true", "1", "yes")
     SANDBOX_USER = os.environ.get("SANDBOX_USER", "judge_sandbox")
 
+    # Timezone settings (Pakistan Standard Time, PKT / Asia/Karachi)
+    APP_TIMEZONE = os.environ.get("APP_TIMEZONE", "Asia/Karachi")
+    TIMEZONE_LABEL = "PKT"
+
 
 class DevelopmentConfig(Config):
     DEBUG = True

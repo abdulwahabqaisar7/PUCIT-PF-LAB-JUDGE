@@ -12,6 +12,7 @@ import subprocess
 import sys
 
 from cpjudge.config import BASE_DIR, Config
+from cpjudge.utils.timezone import format_pkt, now_pkt
 
 
 def get_backup_dir() -> Path:
@@ -33,7 +34,7 @@ def backup_sqlite(db_path: Path, output_dir: Path | None = None) -> Path:
     if output_dir is None:
         output_dir = get_backup_dir()
 
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    timestamp = now_pkt().strftime("%Y%m%d_%H%M%S")
     target_path = output_dir / f"cpjudge_backup_{timestamp}.db"
 
     # Perform hot backup via sqlite3.Connection.backup
@@ -54,7 +55,7 @@ def backup_postgres(db_url: str, output_dir: Path | None = None) -> Path:
     if output_dir is None:
         output_dir = get_backup_dir()
 
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    timestamp = now_pkt().strftime("%Y%m%d_%H%M%S")
     target_path = output_dir / f"cpjudge_pg_backup_{timestamp}.sql"
 
     cmd = ["pg_dump", "--dbname", db_url, "-f", str(target_path)]
@@ -109,7 +110,7 @@ def list_backups() -> list[dict]:
                 "name": f.name,
                 "size_bytes": stat.st_size,
                 "size_kb": round(stat.st_size / 1024, 1),
-                "modified": datetime.fromtimestamp(stat.st_mtime, timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+                "modified": format_pkt(datetime.fromtimestamp(stat.st_mtime, timezone.utc), "%Y-%m-%d %H:%M:%S PKT"),
             })
     return backups
 

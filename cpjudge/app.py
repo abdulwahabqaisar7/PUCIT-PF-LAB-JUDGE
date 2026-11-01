@@ -44,6 +44,7 @@ def create_app(config_name: str | None = None) -> Flask:
     from cpjudge.student import student_bp
     from cpjudge.teacher import teacher_bp
     from cpjudge.utils.markdown import render_markdown
+    from cpjudge.utils.timezone import format_pkt, to_pkt
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(teacher_bp)
@@ -52,6 +53,16 @@ def create_app(config_name: str | None = None) -> Flask:
 
     # Register template filters
     app.jinja_env.filters["render_markdown"] = render_markdown
+    app.jinja_env.filters["format_pkt"] = format_pkt
+    app.jinja_env.filters["to_pkt"] = to_pkt
+
+    # Global template context
+    @app.context_processor
+    def inject_timezone():
+        return {
+            "TIMEZONE_LABEL": app.config.get("TIMEZONE_LABEL", "PKT"),
+            "APP_TIMEZONE": app.config.get("APP_TIMEZONE", "Asia/Karachi"),
+        }
 
     # Root route
     @app.route("/")

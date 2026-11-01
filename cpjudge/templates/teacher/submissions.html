@@ -70,7 +70,7 @@
                             <th>Verdict</th>
                             <th>Score</th>
                             <th>Time / Mem</th>
-                            <th>Submitted (UTC)</th>
+                            <th>Submitted (PKT)</th>
                             <th class="text-end">Actions</th>
                         </tr>
                     </thead>
@@ -126,7 +126,7 @@
                                     <div><i class="bi bi-stopwatch text-muted me-1"></i>{{ "%.3f"|format(s.max_time or 0) }}s</div>
                                     <div><i class="bi bi-memory text-muted me-1"></i>{{ s.max_memory_kb or 0 }} KB</div>
                                 </td>
-                                <td class="small text-muted">{{ s.created_at.strftime('%Y-%m-%d %H:%M') if s.created_at else '' }}</td>
+                                <td class="small text-muted">{{ s.created_at|format_pkt if s.created_at else '' }}</td>
                                 <td class="text-end">
                                     <div class="btn-group btn-group-sm">
                                         <a href="{{ url_for('teacher.submission_detail', submission_id=s.id) }}" class="btn btn-outline-primary" title="View Source & Tests">

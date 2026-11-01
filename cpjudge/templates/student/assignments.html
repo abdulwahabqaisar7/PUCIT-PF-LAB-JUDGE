@@ -20,7 +20,7 @@
                             <th>Class</th>
                             <th>Assignment Title</th>
                             <th>Problem</th>
-                            <th>Due Date (UTC)</th>
+                            <th>Due Date (PKT)</th>
                             <th>Status</th>
                             <th>Attempts</th>
                             <th>Best Score</th>
@@ -43,7 +43,7 @@
                                         </a>
                                     {% endif %}
                                 </td>
-                                <td class="small">{{ a.due_date.strftime('%Y-%m-%d %H:%M') if a.due_date else '' }}</td>
+                                <td class="small">{{ a.due_date|format_pkt if a.due_date else '' }}</td>
                                 <td>
                                     {% if not a.is_active() and not a.is_late() %}
                                         <span class="badge bg-secondary">Upcoming</span>

@@ -23,7 +23,7 @@
             {% else %}
                 Problem: <strong>{{ assignment.problems[0].title if assignment.problems else (assignment.problem.title if assignment.problem else 'N/A') }}</strong> ({{ assignment.total_marks }} max marks)
             {% endif %}
-            &bull; Due: {{ assignment.due_date.strftime('%Y-%m-%d %H:%M UTC') if assignment.due_date else 'No deadline' }}
+            &bull; Due: {{ assignment.due_date|format_pkt('%Y-%m-%d %H:%M PKT') if assignment.due_date else 'No deadline' }}
         </p>
     </div>
     <div class="d-flex gap-2 align-items-center flex-wrap">
@@ -99,7 +99,7 @@
                             <th class="text-center">Late Penalty</th>
                             <th class="text-center">Final Score</th>
                             <th class="text-center">Best Verdict</th>
-                            <th>Last Submitted (UTC)</th>
+                            <th>Last Submitted (PKT)</th>
                             <th class="text-end">Actions</th>
                         </tr>
                     </thead>
@@ -168,7 +168,7 @@
                                     {% endif %}
                                 </td>
                                 <td class="small text-muted">
-                                    {{ row.latest_submission.created_at.strftime('%Y-%m-%d %H:%M:%S') if row.latest_submission and row.latest_submission.created_at else 'N/A' }}
+                                    {{ row.latest_submission.created_at|format_pkt('%Y-%m-%d %H:%M:%S') if row.latest_submission and row.latest_submission.created_at else 'N/A' }}
                                 </td>
                                 <td class="text-end">
                                     {% if row.best_submission %}

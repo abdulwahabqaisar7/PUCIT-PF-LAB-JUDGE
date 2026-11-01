@@ -35,7 +35,7 @@
                         </tr>
                         <tr>
                             <th class="bg-light">Member Since</th>
-                            <td>{{ user.created_at.strftime('%Y-%m-%d %H:%M UTC') if user.created_at else 'N/A' }}</td>
+                            <td>{{ user.created_at|format_pkt('%Y-%m-%d %H:%M PKT') if user.created_at else 'N/A' }}</td>
                         </tr>
                     </tbody>
                 </table>

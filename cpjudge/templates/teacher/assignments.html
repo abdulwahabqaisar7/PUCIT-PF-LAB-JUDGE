@@ -23,8 +23,8 @@
                             <th>Assignment Title</th>
                             <th>Class</th>
                             <th>Problem</th>
-                            <th>Open Date (UTC)</th>
-                            <th>Due Date (UTC)</th>
+                            <th>Open Date (PKT)</th>
+                            <th>Due Date (PKT)</th>
                             <th>Status</th>
                             <th>Late Policy</th>
                             <th>Submissions</th>
@@ -52,8 +52,8 @@
                                         <span class="text-muted">No problems</span>
                                     {% endif %}
                                 </td>
-                                <td class="small">{{ a.open_date.strftime('%Y-%m-%d %H:%M') if a.open_date else '' }}</td>
-                                <td class="small">{{ a.due_date.strftime('%Y-%m-%d %H:%M') if a.due_date else '' }}</td>
+                                <td class="small">{{ a.open_date|format_pkt if a.open_date else '' }}</td>
+                                <td class="small">{{ a.due_date|format_pkt if a.due_date else '' }}</td>
                                 <td>
                                     {% if not a.is_active() and not a.is_late() %}
                                         <span class="badge bg-secondary">Upcoming</span>

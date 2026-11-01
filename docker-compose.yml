@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   web:
     build:
@@ -13,6 +11,8 @@ services:
     environment:
       - FLASK_ENV=production
       - PYTHONUNBUFFERED=1
+      - TZ=Asia/Karachi
+      - APP_TIMEZONE=Asia/Karachi
     restart: unless-stopped
 
   worker:
@@ -25,6 +25,8 @@ services:
     environment:
       - FLASK_ENV=production
       - PYTHONUNBUFFERED=1
+      - TZ=Asia/Karachi
+      - APP_TIMEZONE=Asia/Karachi
     # Required for Linux bubblewrap & setrlimit sandbox capabilities
     cap_add:
       - SYS_ADMIN
@@ -41,6 +43,9 @@ services:
     command: pytest -v
     volumes:
       - .:/app
+    environment:
+      - TZ=Asia/Karachi
+      - APP_TIMEZONE=Asia/Karachi
     cap_add:
       - SYS_ADMIN
     security_opt:

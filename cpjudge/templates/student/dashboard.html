@@ -57,7 +57,7 @@
                             <th>Assignment</th>
                             <th>Class</th>
                             <th>Problem</th>
-                            <th>Due Date (UTC)</th>
+                            <th>Due Date (PKT)</th>
                             <th>Status</th>
                             <th class="text-end">Action</th>
                         </tr>
@@ -77,7 +77,7 @@
                                         {{ a.problem.title if a.problem else 'None' }}
                                     {% endif %}
                                 </td>
-                                <td class="small">{{ a.due_date.strftime('%Y-%m-%d %H:%M') if a.due_date else '' }}</td>
+                                <td class="small">{{ a.due_date|format_pkt if a.due_date else '' }}</td>
                                 <td>
                                     {% if not a.is_active() and not a.is_late() %}
                                         <span class="badge bg-secondary">Upcoming</span>
@@ -132,7 +132,7 @@
                             <th>Language</th>
                             <th>Verdict</th>
                             <th>Score</th>
-                            <th>Submitted (UTC)</th>
+                            <th>Submitted (PKT)</th>
                             <th class="text-end"></th>
                         </tr>
                     </thead>
@@ -164,7 +164,7 @@
                                         &mdash;
                                     {% endif %}
                                 </td>
-                                <td class="small text-muted">{{ s.created_at.strftime('%Y-%m-%d %H:%M') if s.created_at else '' }}</td>
+                                <td class="small text-muted">{{ s.created_at|format_pkt if s.created_at else '' }}</td>
                                 <td class="text-end">
                                     <a href="{{ url_for('student.submission_detail', submission_id=s.id) }}" class="btn btn-sm btn-outline-primary">
                                         <i class="bi bi-eye"></i> Detail

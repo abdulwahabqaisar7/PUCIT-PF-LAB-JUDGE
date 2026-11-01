@@ -121,7 +121,7 @@
                 <div class="small text-muted">Submission Info</div>
                 <div class="small text-muted mt-1">
                     <div><i class="bi bi-code-slash me-1"></i><strong class="font-monospace">{{ submission.language|upper }}</strong></div>
-                    <div><i class="bi bi-clock me-1"></i>{{ submission.created_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</div>
+                    <div><i class="bi bi-clock me-1"></i>{{ submission.created_at|format_pkt('%Y-%m-%d %H:%M:%S PKT') }}</div>
                     {% if submission.max_time is not none %}
                         <div><i class="bi bi-stopwatch me-1"></i>{{ "%.3f"|format(submission.max_time) }}s | {{ submission.max_memory_kb or 0 }} KB</div>
                     {% endif %}

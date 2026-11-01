@@ -34,22 +34,17 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 
 from cpjudge.utils.auth import hash_password, verify_password
+from cpjudge.utils.timezone import (
+    PKT_TZ,
+    ensure_pkt,
+    format_pkt,
+    now_pkt,
+    to_pkt,
+    utc_now,
+    ensure_utc,
+)
 
 db = SQLAlchemy()
-
-
-def utc_now() -> datetime:
-    """Helper returning current datetime with UTC timezone."""
-    return datetime.now(timezone.utc)
-
-
-def ensure_utc(dt: Optional[datetime]) -> Optional[datetime]:
-    """Ensures a datetime is timezone-aware UTC datetime for consistent comparisons."""
-    if dt is None:
-        return None
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
 
 
 class User(UserMixin, db.Model):
