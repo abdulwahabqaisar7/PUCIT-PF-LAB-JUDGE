@@ -41,11 +41,13 @@ def create_app(config_name: str | None = None) -> Flask:
     # Register blueprints
     from cpjudge.auth import auth_bp
     from cpjudge.auth.decorators import register_auth_hooks
+    from cpjudge.student import student_bp
     from cpjudge.teacher import teacher_bp
     from cpjudge.utils.markdown import render_markdown
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(teacher_bp)
+    app.register_blueprint(student_bp)
     register_auth_hooks(app)
 
     # Register template filters

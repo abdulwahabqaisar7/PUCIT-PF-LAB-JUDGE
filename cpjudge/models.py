@@ -206,6 +206,10 @@ class Test(db.Model):
     problem = relationship("Problem", back_populates="tests")
     results = relationship("Result", back_populates="test")
 
+    @property
+    def is_visible(self) -> bool:
+        return not self.is_hidden
+
     def __repr__(self) -> str:
         return f"<Test id={self.id} problem_id={self.problem_id} hidden={self.is_hidden} marks={self.marks}>"
 
@@ -323,6 +327,22 @@ class Result(db.Model):
     # Relationships
     submission = relationship("Submission", back_populates="results")
     test = relationship("Test", back_populates="results")
+
+    @property
+    def execution_time(self) -> float:
+        return self.cpu_time
+
+    @property
+    def memory_used_kb(self) -> int:
+        return self.memory_kb
+
+    @property
+    def score_awarded(self) -> float:
+        return self.marks_awarded
+
+    @property
+    def checker_diff(self) -> Optional[str]:
+        return self.diff
 
     def __repr__(self) -> str:
         return f"<Result id={self.id} submission_id={self.submission_id} verdict='{self.verdict}'>"

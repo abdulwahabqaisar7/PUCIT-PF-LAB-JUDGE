@@ -55,48 +55,48 @@
                     <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                         {% if current_user.is_teacher %}
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('teacher.dashboard') if 'teacher.dashboard' in config else '#' }}">
+                                <a class="nav-link" href="{{ url_for('teacher.dashboard') }}">
                                     <i class="bi bi-speedometer2"></i> Dashboard
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('teacher.problems') if 'teacher.problems' in config else '#' }}">
+                                <a class="nav-link" href="{{ url_for('teacher.problems') }}">
                                     <i class="bi bi-puzzle"></i> Problems
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('teacher.classes') if 'teacher.classes' in config else '#' }}">
+                                <a class="nav-link" href="{{ url_for('teacher.classes') }}">
                                     <i class="bi bi-mortarboard"></i> Classes
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('teacher.assignments') if 'teacher.assignments' in config else '#' }}">
+                                <a class="nav-link" href="{{ url_for('teacher.assignments') }}">
                                     <i class="bi bi-calendar-event"></i> Assignments
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('teacher.submissions') if 'teacher.submissions' in config else '#' }}">
+                                <a class="nav-link" href="{{ url_for('teacher.submissions') }}">
                                     <i class="bi bi-card-checklist"></i> Submissions
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('teacher.audit_logs') if 'teacher.audit_logs' in config else '#' }}">
+                                <a class="nav-link" href="{{ url_for('teacher.audit_logs') }}">
                                     <i class="bi bi-shield-check"></i> Audit Logs
                                 </a>
                             </li>
                         {% elif current_user.is_student %}
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('student.dashboard') if 'student.dashboard' in config else '#' }}">
+                                <a class="nav-link" href="{{ url_for('student.dashboard') }}">
                                     <i class="bi bi-house-door"></i> Dashboard
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('student.assignments') if 'student.assignments' in config else '#' }}">
+                                <a class="nav-link" href="{{ url_for('student.assignments') }}">
                                     <i class="bi bi-journal-check"></i> Assignments
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('student.history') if 'student.history' in config else '#' }}">
+                                <a class="nav-link" href="{{ url_for('student.history') }}">
                                     <i class="bi bi-clock-history"></i> My Submissions
                                 </a>
                             </li>
