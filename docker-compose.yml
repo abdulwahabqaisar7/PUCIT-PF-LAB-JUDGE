@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile
     command: python run.py
     ports:
-      - "5000:5000"
+      - "${PORT:-5050}:5000"
     volumes:
       - .:/app
     environment:

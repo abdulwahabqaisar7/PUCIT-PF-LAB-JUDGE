@@ -108,7 +108,8 @@ This creates the database tables and provisions the initial demo accounts:
 | **Student 3** | `bcsf20m003` | `Student@123` | Forces password change on login |
 
 ### 3. Open in Browser
-Access the judge on `http://localhost:5000` (or your machine's LAN IP, e.g., `http://192.168.1.100:5000`).
+Access the judge on `http://localhost:5050` (or your machine's LAN IP, e.g., `http://192.168.1.100:5050`).
+*(Note: To use port 5000, set `PORT=5000` or configure it in `.env`)*
 
 ---
 
