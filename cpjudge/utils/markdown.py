@@ -2,6 +2,7 @@
 
 Safely converts Markdown to HTML and sanitizes output using Bleach.
 """
+from markupsafe import Markup
 import bleach
 import markdown
 
@@ -71,4 +72,4 @@ def render_markdown(text: str) -> str:
     # Automatically linkify URLs with rel="noopener noreferrer"
     clean_html = bleach.linkify(clean_html)
 
-    return clean_html
+    return Markup(clean_html)
