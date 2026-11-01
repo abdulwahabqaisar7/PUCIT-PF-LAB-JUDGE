@@ -25,8 +25,10 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # Security limits
-    # Max file upload / submission payload limit (64 KB)
-    MAX_CONTENT_LENGTH = 64 * 1024
+    # Max HTTP payload limit (16 MB for teacher ZIP test case packages and CSV rosters)
+    MAX_CONTENT_LENGTH = 16 * 1024 * 1024
+    # Max student code submission size (64 KB)
+    MAX_STUDENT_CODE_BYTES = 64 * 1024
 
     # Rate limiting configuration (Flask-Limiter)
     RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI", "memory://")

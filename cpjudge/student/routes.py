@@ -15,6 +15,7 @@ from cpjudge.models import (
     ensure_utc,
     utc_now,
 )
+from cpjudge.app import limiter
 from cpjudge.student import student_bp
 from cpjudge.student.forms import CodeSubmissionForm
 
@@ -103,6 +104,7 @@ def assignments():
 # ==============================================================================
 
 @student_bp.route("/assignments/<int:assignment_id>/problem", methods=["GET", "POST"])
+@limiter.limit("20 per minute", methods=["POST"])
 @student_required
 def assignment_problem(assignment_id: int):
     """Problem statement view and submission portal for a specific assignment."""
