@@ -1,0 +1,13 @@
+services:
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: pytest -v
+    volumes:
+      - .:/app
+    # Security options to allow namespace sandboxing if supported
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
