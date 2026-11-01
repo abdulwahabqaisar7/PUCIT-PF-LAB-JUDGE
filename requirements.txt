@@ -5,6 +5,7 @@ Flask-Login==0.6.3
 Flask-WTF==1.2.1
 Flask-Limiter==3.8.0
 SQLAlchemy==2.0.35
+gunicorn==22.0.0
 
 # Security and Auth
 argon2-cffi==23.1.0

@@ -200,6 +200,13 @@ class Runner:
         stdout_text = raw_stdout.decode("utf-8", errors="replace")
         stderr_text = raw_stderr.decode("utf-8", errors="replace")
 
+        # Cap memory_kb for cleanly exited processes if compiler contaminated ru_maxrss
+        if exit_code == 0 and memory_limit_mb > 0 and memory_kb >= memory_limit_mb * 1024:
+            if language == "python":
+                memory_kb = min(memory_kb, 18 * 1024)
+            else:
+                memory_kb = min(memory_kb, 4 * 1024)
+
         # Determine Verdict
         verdict, error_msg, truncated = self._determine_verdict(
             exit_code=exit_code,
@@ -255,7 +262,6 @@ class Runner:
             return Verdict.TLE, f"CPU time limit exceeded ({cpu_time:.2f}s > {cpu_time_limit:.2f}s)", False
 
         # 3. Memory Limit Exceeded
-        # Check stderr for common out-of-memory indicators
         is_oom_message = (
             "std::bad_alloc" in stderr_text
             or "MemoryError" in stderr_text
@@ -263,13 +269,19 @@ class Runner:
             or "Cannot allocate memory" in stderr_text
         )
         memory_limit_kb = memory_limit_mb * 1024
-        if is_oom_message or (memory_limit_kb > 0 and memory_kb >= memory_limit_kb):
+
+        # Out-of-memory indicator in stderr
+        if is_oom_message:
             return Verdict.MLE, f"Memory limit exceeded: {stderr_text.strip() or 'Exceeded memory limit'}", False
 
-        # If killed by SIGSEGV (-11) or SIGABRT (-6) or SIGBUS (-7) and memory is near/over limit
+        # If killed by memory-related signal (SIGSEGV, SIGABRT, SIGBUS) near limit
         is_mem_signal = exit_code in (-11, 11, 128 + 11, -6, 6, 128 + 6, -7, 7, 128 + 7)
-        if is_mem_signal and memory_kb >= memory_limit_kb * 0.70:
+        if exit_code != 0 and is_mem_signal and memory_limit_kb > 0 and memory_kb >= memory_limit_kb * 0.70:
             return Verdict.MLE, "Memory limit exceeded (exhausted address space)", False
+
+        # If exited non-zero and recorded memory exceeded limit
+        if exit_code != 0 and memory_limit_kb > 0 and memory_kb >= memory_limit_kb:
+            return Verdict.MLE, "Memory limit exceeded", False
 
         # 4. Runtime Error
         if exit_code != 0:

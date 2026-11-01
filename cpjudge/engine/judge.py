@@ -225,10 +225,140 @@ def judge_submission(
 
 
 def judge(submission_id: int) -> SubmissionResult:
-    """Library entry point for worker integration (Phase 6).
+    """Evaluates a submission against database test cases and updates the DB.
 
-    In Phase 6, this function will query the database for submission_id,
-    retrieve source code, language, and problem test cases, invoke
-    judge_submission(), and persist the results.
+    1. Retrieves submission, problem, and problem test cases.
+    2. Runs judge_submission().
+    3. Persists per-test Result records (strictly masking hidden test outputs/diffs).
+    4. Upserts Score record (applying late penalties if applicable).
+    5. Updates Submission to 'done' (or 'error' on unhandled crash).
     """
-    raise NotImplementedError("Database-backed judge(submission_id) is wired in Phase 6.")
+    from cpjudge.models import (
+        Problem,
+        Result,
+        Score,
+        Submission,
+        Test,
+        db,
+        utc_now,
+    )
+
+    submission = db.session.get(Submission, submission_id)
+    if not submission:
+        raise ValueError(f"Submission #{submission_id} not found in database.")
+
+    problem = submission.problem
+    if not problem:
+        raise ValueError(f"Problem #{submission.problem_id} associated with submission #{submission_id} not found.")
+
+    # Convert tests to engine TestCase objects ordered by order_num
+    db_tests = (
+        Test.query.filter_by(problem_id=problem.id)
+        .order_by(Test.order_num.asc())
+        .all()
+    )
+    test_cases = [
+        TestCase(
+            id=t.id,
+            input_data=t.input_data,
+            expected_output=t.expected_output,
+            marks=t.marks,
+            is_hidden=t.is_hidden,
+            subtask_id=t.subtask_id,
+        )
+        for t in db_tests
+    ]
+
+    # Calculate late penalty percent
+    late_penalty = 0.0
+    if submission.is_late and submission.assignment and submission.assignment.allow_late:
+        late_penalty = submission.assignment.late_penalty_percent
+
+    # Prepare custom checker file if needed
+    custom_checker_dir = None
+    custom_checker_path = None
+    if problem.checker_type == "custom" and problem.checker_code:
+        custom_checker_dir = tempfile.TemporaryDirectory(prefix="cpjudge_custom_checker_")
+        cpath = Path(custom_checker_dir.name) / "checker.py"
+        cpath.write_text(problem.checker_code, encoding="utf-8")
+        custom_checker_path = str(cpath)
+
+    try:
+        config = JudgeConfig(
+            time_limit=problem.time_limit,
+            memory_limit_mb=problem.memory_limit,
+            output_limit_bytes=problem.output_limit_bytes,
+            checker_type=CheckerType(problem.checker_type),
+            custom_checker_path=custom_checker_path,
+            float_tolerance=problem.float_tolerance,
+            scoring_mode=ScoringMode(problem.scoring_mode),
+            late_penalty_percent=late_penalty,
+        )
+
+        sub_result = judge_submission(
+            source_code=submission.source_code,
+            language=submission.language,
+            test_cases=test_cases,
+            config=config,
+        )
+
+        # Clear existing Result records (supports clean rejudging)
+        Result.query.filter_by(submission_id=submission.id).delete()
+
+        # Write new Result records
+        for idx, tr in enumerate(sub_result.test_results, start=1):
+            r = Result(
+                submission_id=submission.id,
+                test_id=int(tr.test_id),
+                test_order=idx,
+                verdict=tr.verdict.value,
+                cpu_time=tr.cpu_time,
+                wall_time=tr.wall_time,
+                memory_kb=tr.memory_kb,
+                marks_awarded=tr.marks_awarded,
+                is_hidden=tr.is_hidden,
+                # Strict privacy: NULL for hidden tests
+                student_output=tr.student_output if not tr.is_hidden else None,
+                diff=tr.diff if not tr.is_hidden else None,
+                feedback=tr.feedback if not tr.is_hidden else None,
+            )
+            db.session.add(r)
+
+        # Upsert Score record
+        score = submission.score
+        if score is None:
+            score = Score(
+                submission_id=submission.id,
+                assignment_id=submission.assignment_id,
+                user_id=submission.user_id,
+                problem_id=submission.problem_id,
+            )
+            db.session.add(score)
+
+        score.raw_score = sub_result.raw_score
+        score.late_penalty_percent = late_penalty
+        score.late_penalty_deduction = sub_result.late_penalty_deduction
+        score.final_score = sub_result.total_score
+        score.max_possible_score = sub_result.max_score
+        score.is_stale = (submission.tests_version != problem.tests_version)
+
+        # Update Submission status and metrics
+        submission.status = "done"
+        submission.verdict = sub_result.verdict.value
+        submission.max_time = sub_result.max_time
+        submission.max_memory_kb = sub_result.max_memory_kb
+        submission.compile_error = sub_result.compile_error
+        submission.judged_at = utc_now()
+
+        db.session.commit()
+        return sub_result
+
+    except Exception as e:
+        db.session.rollback()
+        submission.status = "error"
+        submission.compile_error = f"Judge Worker Execution Error: {str(e)}"
+        db.session.commit()
+        raise
+    finally:
+        if custom_checker_dir:
+            custom_checker_dir.cleanup()

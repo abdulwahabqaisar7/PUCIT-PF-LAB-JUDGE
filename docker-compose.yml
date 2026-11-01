@@ -1,4 +1,39 @@
+version: "3.8"
+
 services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: python run.py
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app
+    environment:
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: python -m cpjudge.worker
+    volumes:
+      - .:/app
+    environment:
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+    # Required for Linux bubblewrap & setrlimit sandbox capabilities
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    depends_on:
+      - web
+    restart: unless-stopped
+
   test:
     build:
       context: .
@@ -6,7 +41,6 @@ services:
     command: pytest -v
     volumes:
       - .:/app
-    # Security options to allow namespace sandboxing if supported
     cap_add:
       - SYS_ADMIN
     security_opt:
