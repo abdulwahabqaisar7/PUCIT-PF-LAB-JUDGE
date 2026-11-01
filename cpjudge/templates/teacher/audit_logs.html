@@ -3,11 +3,23 @@
 {% block title %}Audit Logs{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
     <div>
         <h2 class="mb-1"><i class="bi bi-shield-check text-primary me-2"></i>System Audit Logs</h2>
         <div class="text-muted">Immutable audit trail of administrative actions, test modifications, rejudges, and student imports.</div>
     </div>
+    <form method="GET" action="{{ url_for('teacher.audit_logs') }}" class="d-flex gap-2 align-items-center">
+        <label for="action-filter" class="small text-muted fw-bold mb-0">Action:</label>
+        <select name="action" id="action-filter" class="form-select form-select-sm" onchange="this.form.submit()">
+            <option value="">-- All Actions --</option>
+            {% for act in distinct_actions %}
+                <option value="{{ act }}" {% if act == selected_action %}selected{% endif %}>{{ act }}</option>
+            {% endfor %}
+        </select>
+        {% if selected_action %}
+            <a href="{{ url_for('teacher.audit_logs') }}" class="btn btn-sm btn-outline-secondary text-nowrap">Clear</a>
+        {% endif %}
+    </form>
 </div>
 
 <div class="card border-0 shadow-sm">

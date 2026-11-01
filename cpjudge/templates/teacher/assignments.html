@@ -62,6 +62,18 @@
                                 </td>
                                 <td class="text-end">
                                     <div class="btn-group btn-group-sm">
+                                        <a href="{{ url_for('teacher.assignment_gradebook', assignment_id=a.id) }}" class="btn btn-outline-success" title="Assignment Gradebook">
+                                            <i class="bi bi-table"></i>
+                                        </a>
+                                        <a href="{{ url_for('teacher.assignment_gradebook_csv', assignment_id=a.id) }}" class="btn btn-outline-secondary" title="Export Gradebook CSV">
+                                            <i class="bi bi-download"></i>
+                                        </a>
+                                        <form action="{{ url_for('teacher.rejudge_assignment', assignment_id=a.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Rejudge all submissions for assignment \'{{ a.title }}\'?');">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <button type="submit" class="btn btn-outline-warning" title="Rejudge All Submissions">
+                                                <i class="bi bi-arrow-repeat"></i>
+                                            </button>
+                                        </form>
                                         <a href="{{ url_for('teacher.assignment_edit', assignment_id=a.id) }}" class="btn btn-outline-secondary" title="Edit Assignment">
                                             <i class="bi bi-pencil"></i>
                                         </a>

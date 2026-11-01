@@ -421,5 +421,15 @@ class AuditLog(db.Model):
         db.session.add(entry)
         return entry
 
+    @property
+    def details_dict(self) -> Dict[str, Any]:
+        """Parsed dictionary from JSON details."""
+        if not self.details:
+            return {}
+        try:
+            return json.loads(self.details)
+        except Exception:
+            return {"raw": self.details}
+
     def __repr__(self) -> str:
         return f"<AuditLog id={self.id} action='{self.action}' user_id={self.user_id}>"

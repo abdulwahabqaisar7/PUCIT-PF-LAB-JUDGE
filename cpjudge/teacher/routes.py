@@ -4,7 +4,7 @@ import io
 from pathlib import Path
 import re
 import zipfile
-from flask import abort, flash, redirect, render_template, request, url_for
+from flask import Response, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 from sqlalchemy import or_
 
@@ -902,6 +902,339 @@ def rejudge_problem(problem_id: int):
     return redirect(url_for("teacher.submissions", problem_id=problem.id))
 
 
+@teacher_bp.route("/assignments/<int:assignment_id>/rejudge-all", methods=["POST"])
+@teacher_required
+def rejudge_assignment(assignment_id: int):
+    """Rejudges all submissions for a specific assignment."""
+    assignment = db.session.get(Assignment, assignment_id)
+    if not assignment:
+        abort(404)
+
+    subs = Submission.query.filter_by(assignment_id=assignment.id).all()
+    for s in subs:
+        s.status = "queued"
+        s.verdict = None
+        s.compile_error = None
+        s.tests_version = s.problem.tests_version
+        if s.score:
+            s.score.is_stale = False
+
+    AuditLog.log(
+        action="rejudge_assignment",
+        user_id=current_user.id,
+        target_type="assignment",
+        target_id=assignment.id,
+        details={"submission_count": len(subs), "assignment_title": assignment.title},
+        ip_address=request.remote_addr,
+    )
+    db.session.commit()
+    flash(f"Queued all {len(subs)} submissions of assignment '{assignment.title}' for rejudging.", "info")
+    return redirect(url_for("teacher.submissions", assignment_id=assignment.id))
+
+
+# ==============================================================================
+# GRADEBOOK (CLASS & ASSIGNMENT VIEWS + CSV EXPORTS)
+# ==============================================================================
+
+@teacher_bp.route("/classes/<int:class_id>/gradebook")
+@teacher_required
+def class_gradebook(class_id: int):
+    """HTML gradebook matrix view for an entire class."""
+    classroom = db.session.get(Class, class_id)
+    if not classroom:
+        abort(404)
+
+    assignments = (
+        Assignment.query.filter_by(class_id=classroom.id)
+        .order_by(Assignment.open_date.asc(), Assignment.id.asc())
+        .all()
+    )
+    enrollments = (
+        Enrollment.query.filter_by(class_id=classroom.id)
+        .join(User)
+        .order_by(User.roll_no.asc(), User.name.asc())
+        .all()
+    )
+
+    roster_matrix = []
+    total_class_earned = 0.0
+    total_class_possible = 0.0
+
+    for enr in enrollments:
+        student = enr.user
+        row = {
+            "user": student,
+            "assignment_scores": {},
+            "total_earned": 0.0,
+            "total_possible": 0.0,
+            "percentage": 0.0,
+        }
+        for a in assignments:
+            subs = (
+                Submission.query.filter_by(user_id=student.id, assignment_id=a.id)
+                .all()
+            )
+            scores = [s.score.final_score for s in subs if s.score is not None]
+            best_score = max(scores) if scores else None
+            max_marks = a.problem.total_marks
+            row["assignment_scores"][a.id] = {
+                "best": best_score,
+                "max": max_marks,
+                "attempts": len(subs),
+            }
+            if best_score is not None:
+                row["total_earned"] += best_score
+            row["total_possible"] += max_marks
+
+        if row["total_possible"] > 0.0:
+            row["percentage"] = round((row["total_earned"] / row["total_possible"]) * 100.0, 1)
+
+        total_class_earned += row["total_earned"]
+        total_class_possible += row["total_possible"]
+        roster_matrix.append(row)
+
+    class_avg = 0.0
+    if total_class_possible > 0.0:
+        class_avg = round((total_class_earned / total_class_possible) * 100.0, 1)
+
+    return render_template(
+        "teacher/class_gradebook.html",
+        classroom=classroom,
+        assignments=assignments,
+        roster_matrix=roster_matrix,
+        class_avg=class_avg,
+    )
+
+
+@teacher_bp.route("/classes/<int:class_id>/gradebook.csv")
+@teacher_required
+def class_gradebook_csv(class_id: int):
+    """Downloadable CSV export of the class gradebook."""
+    classroom = db.session.get(Class, class_id)
+    if not classroom:
+        abort(404)
+
+    assignments = (
+        Assignment.query.filter_by(class_id=classroom.id)
+        .order_by(Assignment.open_date.asc(), Assignment.id.asc())
+        .all()
+    )
+    enrollments = (
+        Enrollment.query.filter_by(class_id=classroom.id)
+        .join(User)
+        .order_by(User.roll_no.asc(), User.name.asc())
+        .all()
+    )
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Header row
+    headers = ["Roll No", "Student Name", "Username"]
+    for a in assignments:
+        headers.append(f"{a.title} ({a.problem.total_marks} pts)")
+    headers.extend(["Total Score", "Max Score", "Percentage (%)"])
+    writer.writerow(headers)
+
+    for enr in enrollments:
+        student = enr.user
+        row_data = [
+            student.roll_no or "N/A",
+            student.name,
+            student.username,
+        ]
+        total_earned = 0.0
+        total_possible = 0.0
+        for a in assignments:
+            subs = Submission.query.filter_by(user_id=student.id, assignment_id=a.id).all()
+            scores = [s.score.final_score for s in subs if s.score is not None]
+            best = max(scores) if scores else None
+            max_marks = a.problem.total_marks
+            total_possible += max_marks
+            if best is not None:
+                total_earned += best
+                row_data.append(f"{best}")
+            else:
+                row_data.append("0.0")
+
+        pct = 0.0
+        if total_possible > 0.0:
+            pct = round((total_earned / total_possible) * 100.0, 1)
+
+        row_data.extend([f"{total_earned}", f"{total_possible}", f"{pct}%"])
+        writer.writerow(row_data)
+
+    AuditLog.log(
+        action="export_gradebook",
+        user_id=current_user.id,
+        target_type="class",
+        target_id=classroom.id,
+        details={"class_code": classroom.code, "student_count": len(enrollments)},
+        ip_address=request.remote_addr,
+    )
+    db.session.commit()
+
+    filename = f"gradebook_{classroom.code}_{utc_now().strftime('%Y%m%d_%H%M')}.csv"
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@teacher_bp.route("/assignments/<int:assignment_id>/gradebook")
+@teacher_required
+def assignment_gradebook(assignment_id: int):
+    """Detailed gradebook for a single assignment."""
+    assignment = db.session.get(Assignment, assignment_id)
+    if not assignment:
+        abort(404)
+
+    classroom = assignment.classroom
+    enrollments = (
+        Enrollment.query.filter_by(class_id=classroom.id)
+        .join(User)
+        .order_by(User.roll_no.asc(), User.name.asc())
+        .all()
+    )
+
+    student_rows = []
+    total_submitted = 0
+    total_ac = 0
+    scores_list = []
+
+    for enr in enrollments:
+        student = enr.user
+        subs = (
+            Submission.query.filter_by(user_id=student.id, assignment_id=assignment.id)
+            .order_by(Submission.created_at.desc())
+            .all()
+        )
+        best_sub = None
+        best_score = None
+        for s in subs:
+            if s.score is not None:
+                if best_score is None or s.score.final_score > best_score.final_score:
+                    best_score = s.score
+                    best_sub = s
+
+        latest_sub = subs[0] if subs else None
+        has_ac = any(s.verdict == "AC" for s in subs)
+        if subs:
+            total_submitted += 1
+        if has_ac:
+            total_ac += 1
+        if best_score:
+            scores_list.append(best_score.final_score)
+
+        student_rows.append({
+            "user": student,
+            "attempts": len(subs),
+            "best_submission": best_sub,
+            "best_score": best_score,
+            "latest_submission": latest_sub,
+        })
+
+    avg_score = round(sum(scores_list) / len(scores_list), 1) if scores_list else 0.0
+
+    return render_template(
+        "teacher/assignment_gradebook.html",
+        assignment=assignment,
+        classroom=classroom,
+        student_rows=student_rows,
+        total_enrolled=len(enrollments),
+        total_submitted=total_submitted,
+        total_ac=total_ac,
+        avg_score=avg_score,
+    )
+
+
+@teacher_bp.route("/assignments/<int:assignment_id>/gradebook.csv")
+@teacher_required
+def assignment_gradebook_csv(assignment_id: int):
+    """Downloadable CSV export of a single assignment gradebook."""
+    assignment = db.session.get(Assignment, assignment_id)
+    if not assignment:
+        abort(404)
+
+    classroom = assignment.classroom
+    enrollments = (
+        Enrollment.query.filter_by(class_id=classroom.id)
+        .join(User)
+        .order_by(User.roll_no.asc(), User.name.asc())
+        .all()
+    )
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    writer.writerow([
+        "Roll No",
+        "Student Name",
+        "Username",
+        "Attempts",
+        "Best Raw Score",
+        "Late Penalty (%)",
+        "Final Score",
+        "Max Score",
+        "Verdict",
+        "Last Submitted At (UTC)",
+    ])
+
+    for enr in enrollments:
+        student = enr.user
+        subs = (
+            Submission.query.filter_by(user_id=student.id, assignment_id=assignment.id)
+            .order_by(Submission.created_at.desc())
+            .all()
+        )
+        best_score = None
+        best_sub = None
+        for s in subs:
+            if s.score is not None:
+                if best_score is None or s.score.final_score > best_score.final_score:
+                    best_score = s.score
+                    best_sub = s
+
+        raw_score_str = f"{best_score.raw_score}" if best_score else "0.0"
+        penalty_val = int(best_score.late_penalty_percent) if (best_score and best_score.late_penalty_percent.is_integer()) else (best_score.late_penalty_percent if best_score else 0)
+        penalty_str = f"{penalty_val}%" if best_score and best_score.late_penalty_percent > 0 else "0%"
+        final_score_str = f"{best_score.final_score}" if best_score else "0.0"
+        max_score_str = f"{assignment.problem.total_marks}"
+        verdict_str = best_sub.verdict if best_sub else "Unsubmitted"
+        submitted_at_str = best_sub.created_at.strftime('%Y-%m-%d %H:%M:%S') if best_sub else "N/A"
+
+        writer.writerow([
+            student.roll_no or "N/A",
+            student.name,
+            student.username,
+            len(subs),
+            raw_score_str,
+            penalty_str,
+            final_score_str,
+            max_score_str,
+            verdict_str,
+            submitted_at_str,
+        ])
+
+    AuditLog.log(
+        action="export_gradebook",
+        user_id=current_user.id,
+        target_type="assignment",
+        target_id=assignment.id,
+        details={"assignment_title": assignment.title, "class_code": classroom.code},
+        ip_address=request.remote_addr,
+    )
+    db.session.commit()
+
+    filename = f"gradebook_assignment_{assignment.id}_{utc_now().strftime('%Y%m%d_%H%M')}.csv"
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
 # ==============================================================================
 # AUDIT LOGS
 # ==============================================================================
@@ -909,6 +1242,23 @@ def rejudge_problem(problem_id: int):
 @teacher_bp.route("/audit-logs")
 @teacher_required
 def audit_logs():
-    """Lists audit logs."""
-    logs = AuditLog.query.order_by(AuditLog.created_at.desc()).limit(150).all()
-    return render_template("teacher/audit_logs.html", logs=logs)
+    """Lists audit logs with optional action filter."""
+    action_filter = request.args.get("action")
+    query = AuditLog.query
+
+    if action_filter:
+        query = query.filter_by(action=action_filter)
+
+    logs = query.order_by(AuditLog.created_at.desc()).limit(200).all()
+
+    # Get distinct action types for filter dropdown
+    distinct_actions = [
+        r[0] for r in db.session.query(AuditLog.action).distinct().order_by(AuditLog.action.asc()).all()
+    ]
+
+    return render_template(
+        "teacher/audit_logs.html",
+        logs=logs,
+        distinct_actions=distinct_actions,
+        selected_action=action_filter,
+    )
