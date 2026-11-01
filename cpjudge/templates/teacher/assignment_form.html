@@ -37,9 +37,13 @@
                             {% endfor %}
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label font-weight-bold" for="problem_id">{{ form.problem_id.label.text }}</label>
-                            {{ form.problem_id(class="form-select" + (" is-invalid" if form.problem_id.errors else "")) }}
-                            {% for error in form.problem_id.errors %}
+                            <label class="form-label font-weight-bold" for="problem_ids">
+                                <i class="bi bi-collection text-primary me-1"></i>Select Problems
+                                <span class="badge bg-primary ms-1">Hold Ctrl / Cmd for Multi-Select</span>
+                            </label>
+                            {{ form.problem_ids(class="form-select" + (" is-invalid" if form.problem_ids.errors else ""), size=4, multiple=True) }}
+                            <div class="form-text small">Select one or more problems to include in this assignment.</div>
+                            {% for error in form.problem_ids.errors %}
                                 <div class="invalid-feedback">{{ error }}</div>
                             {% endfor %}
                         </div>

@@ -161,7 +161,8 @@ class Problem(db.Model):
     # Relationships
     created_by = relationship("User")
     tests = relationship("Test", back_populates="problem", cascade="all, delete-orphan", order_by="Test.order_num")
-    assignments = relationship("Assignment", back_populates="problem", cascade="all, delete-orphan")
+    assignments = relationship("Assignment", back_populates="problem")
+    assignment_links = relationship("AssignmentProblem", back_populates="problem", cascade="all, delete-orphan")
     submissions = relationship("Submission", back_populates="problem", cascade="all, delete-orphan")
 
     @property
@@ -214,13 +215,35 @@ class Test(db.Model):
         return f"<Test id={self.id} problem_id={self.problem_id} hidden={self.is_hidden} marks={self.marks}>"
 
 
+class AssignmentProblem(db.Model):
+    """Association linking an Assignment to multiple Problems with ordering."""
+    __tablename__ = "assignment_problems"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    assignment_id = Column(Integer, ForeignKey("assignments.id", ondelete="CASCADE"), nullable=False, index=True)
+    problem_id = Column(Integer, ForeignKey("problems.id", ondelete="CASCADE"), nullable=False, index=True)
+    order_num = Column(Integer, nullable=False, default=1)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+    __table_args__ = (
+        UniqueConstraint("assignment_id", "problem_id", name="uq_assignment_problem"),
+    )
+
+    # Relationships
+    assignment = relationship("Assignment", back_populates="assignment_problems")
+    problem = relationship("Problem", back_populates="assignment_links")
+
+    def __repr__(self) -> str:
+        return f"<AssignmentProblem assignment_id={self.assignment_id} problem_id={self.problem_id} order={self.order_num}>"
+
+
 class Assignment(db.Model):
-    """Assignment linking a problem to a class with deadlines and rules."""
+    """Assignment linking one or more problems to a class with deadlines and rules."""
     __tablename__ = "assignments"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     class_id = Column(Integer, ForeignKey("classes.id", ondelete="CASCADE"), nullable=False, index=True)
-    problem_id = Column(Integer, ForeignKey("problems.id", ondelete="CASCADE"), nullable=False, index=True)
+    problem_id = Column(Integer, ForeignKey("problems.id", ondelete="SET NULL"), nullable=True, index=True)
     title = Column(String(128), nullable=False)
     open_date = Column(DateTime(timezone=True), nullable=False)
     due_date = Column(DateTime(timezone=True), nullable=False)
@@ -230,15 +253,26 @@ class Assignment(db.Model):
     created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
 
-    __table_args__ = (
-        UniqueConstraint("class_id", "problem_id", name="uq_class_problem_assignment"),
-    )
-
     # Relationships
     classroom = relationship("Class", back_populates="assignments")
     problem = relationship("Problem", back_populates="assignments")
+    assignment_problems = relationship("AssignmentProblem", back_populates="assignment", cascade="all, delete-orphan", order_by="AssignmentProblem.order_num")
     submissions = relationship("Submission", back_populates="assignment", cascade="all, delete-orphan")
     scores = relationship("Score", back_populates="assignment", cascade="all, delete-orphan")
+
+    @property
+    def problems(self) -> List["Problem"]:
+        """Returns the list of problems in this assignment in configured order."""
+        if self.assignment_problems:
+            return [ap.problem for ap in self.assignment_problems if ap.problem is not None]
+        elif self.problem:
+            return [self.problem]
+        return []
+
+    @property
+    def total_marks(self) -> float:
+        """Total possible marks across all problems in this assignment."""
+        return sum(p.total_marks for p in self.problems)
 
     def is_active(self, now: Optional[datetime] = None) -> bool:
         """Checks if assignment is currently accessible (open and not past final due)."""

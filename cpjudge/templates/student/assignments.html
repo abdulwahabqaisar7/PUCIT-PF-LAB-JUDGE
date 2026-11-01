@@ -33,7 +33,16 @@
                             <tr>
                                 <td><span class="badge bg-dark font-monospace">{{ a.classroom.code }}</span></td>
                                 <td><strong>{{ a.title }}</strong></td>
-                                <td>{{ a.problem.title }}</td>
+                                <td>
+                                    {% if a.problems|length == 1 %}
+                                        {{ a.problems[0].title }}
+                                    {% else %}
+                                        <a href="{{ url_for('student.assignment_detail', assignment_id=a.id) }}" class="text-decoration-none">
+                                            <span class="badge bg-primary me-1">{{ a.problems|length }} Problems</span>
+                                            <span class="small text-muted">View list &rarr;</span>
+                                        </a>
+                                    {% endif %}
+                                </td>
                                 <td class="small">{{ a.due_date.strftime('%Y-%m-%d %H:%M') if a.due_date else '' }}</td>
                                 <td>
                                     {% if not a.is_active() and not a.is_late() %}
@@ -57,7 +66,7 @@
                                 </td>
                                 <td>
                                     {% if st.best_score is not none %}
-                                        <strong class="text-primary">{{ st.best_score }}</strong> / {{ a.problem.total_marks }}
+                                        <strong class="text-primary">{{ st.best_score }}</strong> / {{ a.total_marks }}
                                         {% if st.latest_verdict == 'AC' %}
                                             <span class="badge bg-success ms-1">AC</span>
                                         {% elif st.latest_verdict %}
@@ -68,9 +77,15 @@
                                     {% endif %}
                                 </td>
                                 <td class="text-end">
-                                    <a href="{{ url_for('student.assignment_problem', assignment_id=a.id) }}" class="btn btn-sm btn-primary">
-                                        <i class="bi bi-code-slash me-1"></i> Open & Solve
-                                    </a>
+                                    {% if a.problems|length > 1 %}
+                                        <a href="{{ url_for('student.assignment_detail', assignment_id=a.id) }}" class="btn btn-sm btn-primary">
+                                            <i class="bi bi-list-task me-1"></i> View Problems
+                                        </a>
+                                    {% else %}
+                                        <a href="{{ url_for('student.assignment_problem', assignment_id=a.id) }}" class="btn btn-sm btn-primary">
+                                            <i class="bi bi-code-slash me-1"></i> Open & Solve
+                                        </a>
+                                    {% endif %}
                                 </td>
                             </tr>
                         {% endfor %}

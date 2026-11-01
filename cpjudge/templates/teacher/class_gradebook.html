@@ -79,7 +79,7 @@
                                     <a href="{{ url_for('teacher.assignment_gradebook', assignment_id=a.id) }}" class="text-decoration-none text-dark fw-bold d-block" title="View assignment gradebook">
                                         {{ a.title }}
                                     </a>
-                                    <span class="badge bg-secondary font-monospace" style="font-size: 0.75rem;">{{ a.problem.total_marks }} pts</span>
+                                    <span class="badge bg-secondary font-monospace" style="font-size: 0.75rem;">{{ a.total_marks }} pts</span>
                                 </th>
                             {% endfor %}
                             <th style="min-width: 120px;" class="table-primary">Total Score</th>

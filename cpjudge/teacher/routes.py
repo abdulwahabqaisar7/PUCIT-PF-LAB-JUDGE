@@ -11,6 +11,7 @@ from sqlalchemy import or_
 from cpjudge.auth.decorators import teacher_required
 from cpjudge.models import (
     Assignment,
+    AssignmentProblem,
     AuditLog,
     Class,
     Enrollment,
@@ -670,24 +671,25 @@ def assignments():
 @teacher_bp.route("/assignments/new", methods=["GET", "POST"])
 @teacher_required
 def assignment_new():
-    """Creates a new assignment."""
+    """Creates a new assignment with one or more problems."""
     form = AssignmentForm()
     teacher_classes = Class.query.filter_by(teacher_id=current_user.id).all()
     all_problems = Problem.query.order_by(Problem.title.asc()).all()
 
+    problem_choices = [(p.id, f"{p.title} ({p.total_marks} pts, v{p.tests_version})") for p in all_problems]
     form.class_id.choices = [(c.id, f"{c.name} ({c.code})") for c in teacher_classes]
-    form.problem_id.choices = [(p.id, f"{p.title} (v{p.tests_version})") for p in all_problems]
+    form.problem_ids.choices = problem_choices
+    form.problem_id.choices = problem_choices
 
     if form.validate_on_submit():
-        # Check uniqueness of class + problem
-        existing = Assignment.query.filter_by(class_id=form.class_id.data, problem_id=form.problem_id.data).first()
-        if existing:
-            flash("This problem is already assigned to this class.", "danger")
+        selected_pids = form.problem_ids.data if form.problem_ids.data else ([form.problem_id.data] if form.problem_id.data else [])
+        if not selected_pids:
+            flash("Please select at least one problem for this assignment.", "danger")
             return render_template("teacher/assignment_form.html", form=form, title="Create Assignment")
 
         assignment = Assignment(
             class_id=form.class_id.data,
-            problem_id=form.problem_id.data,
+            problem_id=selected_pids[0],
             title=form.title.data.strip(),
             open_date=form.open_date.data,
             due_date=form.due_date.data,
@@ -698,16 +700,23 @@ def assignment_new():
         db.session.add(assignment)
         db.session.flush()
 
+        for idx, pid in enumerate(selected_pids):
+            db.session.add(AssignmentProblem(
+                assignment_id=assignment.id,
+                problem_id=pid,
+                order_num=idx + 1,
+            ))
+
         AuditLog.log(
             action="create_assignment",
             user_id=current_user.id,
             target_type="assignment",
             target_id=assignment.id,
-            details={"title": assignment.title, "class_id": assignment.class_id, "problem_id": assignment.problem_id},
+            details={"title": assignment.title, "class_id": assignment.class_id, "problem_ids": selected_pids},
             ip_address=request.remote_addr,
         )
         db.session.commit()
-        flash(f"Assignment '{assignment.title}' created successfully!", "success")
+        flash(f"Assignment '{assignment.title}' with {len(selected_pids)} problem(s) created successfully!", "success")
         return redirect(url_for("teacher.assignments"))
 
     return render_template("teacher/assignment_form.html", form=form, title="Create Assignment")
@@ -716,7 +725,7 @@ def assignment_new():
 @teacher_bp.route("/assignments/<int:assignment_id>/edit", methods=["GET", "POST"])
 @teacher_required
 def assignment_edit(assignment_id: int):
-    """Edits an assignment."""
+    """Edits an assignment and its associated problems."""
     assignment = db.session.get(Assignment, assignment_id)
     if not assignment:
         abort(404)
@@ -725,12 +734,24 @@ def assignment_edit(assignment_id: int):
     teacher_classes = Class.query.filter_by(teacher_id=current_user.id).all()
     all_problems = Problem.query.order_by(Problem.title.asc()).all()
 
+    problem_choices = [(p.id, f"{p.title} ({p.total_marks} pts, v{p.tests_version})") for p in all_problems]
     form.class_id.choices = [(c.id, f"{c.name} ({c.code})") for c in teacher_classes]
-    form.problem_id.choices = [(p.id, f"{p.title} (v{p.tests_version})") for p in all_problems]
+    form.problem_ids.choices = problem_choices
+    form.problem_id.choices = problem_choices
+
+    if request.method == "GET":
+        form.problem_ids.data = [p.id for p in assignment.problems]
+        if assignment.problem_id:
+            form.problem_id.data = assignment.problem_id
 
     if form.validate_on_submit():
+        selected_pids = form.problem_ids.data if form.problem_ids.data else ([form.problem_id.data] if form.problem_id.data else [])
+        if not selected_pids:
+            flash("Please select at least one problem for this assignment.", "danger")
+            return render_template("teacher/assignment_form.html", form=form, title="Edit Assignment", assignment=assignment)
+
         assignment.class_id = form.class_id.data
-        assignment.problem_id = form.problem_id.data
+        assignment.problem_id = selected_pids[0]
         assignment.title = form.title.data.strip()
         assignment.open_date = form.open_date.data
         assignment.due_date = form.due_date.data
@@ -738,12 +759,21 @@ def assignment_edit(assignment_id: int):
         assignment.late_penalty_percent = form.late_penalty_percent.data
         assignment.allow_late = form.allow_late.data
 
+        # Update assignment_problems
+        AssignmentProblem.query.filter_by(assignment_id=assignment.id).delete()
+        for idx, pid in enumerate(selected_pids):
+            db.session.add(AssignmentProblem(
+                assignment_id=assignment.id,
+                problem_id=pid,
+                order_num=idx + 1,
+            ))
+
         AuditLog.log(
             action="edit_assignment",
             user_id=current_user.id,
             target_type="assignment",
             target_id=assignment.id,
-            details={"title": assignment.title},
+            details={"title": assignment.title, "problem_ids": selected_pids},
             ip_address=request.remote_addr,
         )
         db.session.commit()
@@ -970,17 +1000,26 @@ def class_gradebook(class_id: int):
             "percentage": 0.0,
         }
         for a in assignments:
-            subs = (
-                Submission.query.filter_by(user_id=student.id, assignment_id=a.id)
-                .all()
-            )
-            scores = [s.score.final_score for s in subs if s.score is not None]
-            best_score = max(scores) if scores else None
-            max_marks = a.problem.total_marks
+            assignment_earned = 0.0
+            total_subs = 0
+            has_sub = False
+            for p in a.problems:
+                p_subs = (
+                    Submission.query.filter_by(user_id=student.id, assignment_id=a.id, problem_id=p.id)
+                    .all()
+                )
+                p_scores = [s.score.final_score for s in p_subs if s.score is not None]
+                if p_scores:
+                    assignment_earned += max(p_scores)
+                    has_sub = True
+                total_subs += len(p_subs)
+
+            best_score = round(assignment_earned, 1) if has_sub else None
+            max_marks = a.total_marks
             row["assignment_scores"][a.id] = {
                 "best": best_score,
                 "max": max_marks,
-                "attempts": len(subs),
+                "attempts": total_subs,
             }
             if best_score is not None:
                 row["total_earned"] += best_score
@@ -1032,7 +1071,7 @@ def class_gradebook_csv(class_id: int):
     # Header row
     headers = ["Roll No", "Student Name", "Username"]
     for a in assignments:
-        headers.append(f"{a.title} ({a.problem.total_marks} pts)")
+        headers.append(f"{a.title} ({a.total_marks} pts)")
     headers.extend(["Total Score", "Max Score", "Percentage (%)"])
     writer.writerow(headers)
 
@@ -1046,14 +1085,20 @@ def class_gradebook_csv(class_id: int):
         total_earned = 0.0
         total_possible = 0.0
         for a in assignments:
-            subs = Submission.query.filter_by(user_id=student.id, assignment_id=a.id).all()
-            scores = [s.score.final_score for s in subs if s.score is not None]
-            best = max(scores) if scores else None
-            max_marks = a.problem.total_marks
+            assignment_earned = 0.0
+            has_sub = False
+            for p in a.problems:
+                p_subs = Submission.query.filter_by(user_id=student.id, assignment_id=a.id, problem_id=p.id).all()
+                p_scores = [s.score.final_score for s in p_subs if s.score is not None]
+                if p_scores:
+                    assignment_earned += max(p_scores)
+                    has_sub = True
+
+            max_marks = a.total_marks
             total_possible += max_marks
-            if best is not None:
-                total_earned += best
-                row_data.append(f"{best}")
+            if has_sub:
+                total_earned += assignment_earned
+                row_data.append(f"{round(assignment_earned, 1)}")
             else:
                 row_data.append("0.0")
 
@@ -1103,6 +1148,9 @@ def assignment_gradebook(assignment_id: int):
     total_ac = 0
     scores_list = []
 
+    problems = assignment.problems
+    is_multi = len(problems) > 1
+
     for enr in enrollments:
         student = enr.user
         subs = (
@@ -1112,11 +1160,34 @@ def assignment_gradebook(assignment_id: int):
         )
         best_sub = None
         best_score = None
-        for s in subs:
-            if s.score is not None:
-                if best_score is None or s.score.final_score > best_score.final_score:
-                    best_score = s.score
-                    best_sub = s
+
+        if is_multi:
+            total_final = 0.0
+            total_raw = 0.0
+            has_sub = False
+            for p in problems:
+                p_subs = [s for s in subs if s.problem_id == p.id]
+                p_scores = [s.score for s in p_subs if s.score is not None]
+                if p_scores:
+                    has_sub = True
+                    p_best = max(p_scores, key=lambda sc: sc.final_score)
+                    total_final += p_best.final_score
+                    total_raw += p_best.raw_score
+
+            if has_sub:
+                class AggregatedScore:
+                    def __init__(self, f_score, r_score):
+                        self.final_score = round(f_score, 1)
+                        self.raw_score = round(r_score, 1)
+                        self.late_penalty_percent = 0.0
+                best_score = AggregatedScore(total_final, total_raw)
+            best_sub = subs[0] if subs else None
+        else:
+            for s in subs:
+                if s.score is not None:
+                    if best_score is None or s.score.final_score > best_score.final_score:
+                        best_score = s.score
+                        best_sub = s
 
         latest_sub = subs[0] if subs else None
         has_ac = any(s.verdict == "AC" for s in subs)
@@ -1181,6 +1252,9 @@ def assignment_gradebook_csv(assignment_id: int):
         "Last Submitted At (UTC)",
     ])
 
+    problems = assignment.problems
+    is_multi = len(problems) > 1
+
     for enr in enrollments:
         student = enr.user
         subs = (
@@ -1188,21 +1262,41 @@ def assignment_gradebook_csv(assignment_id: int):
             .order_by(Submission.created_at.desc())
             .all()
         )
-        best_score = None
-        best_sub = None
-        for s in subs:
-            if s.score is not None:
-                if best_score is None or s.score.final_score > best_score.final_score:
-                    best_score = s.score
-                    best_sub = s
+        if is_multi:
+            total_final = 0.0
+            total_raw = 0.0
+            has_sub = False
+            for p in problems:
+                p_subs = [s for s in subs if s.problem_id == p.id]
+                p_scores = [s.score for s in p_subs if s.score is not None]
+                if p_scores:
+                    has_sub = True
+                    p_best = max(p_scores, key=lambda sc: sc.final_score)
+                    total_final += p_best.final_score
+                    total_raw += p_best.raw_score
 
-        raw_score_str = f"{best_score.raw_score}" if best_score else "0.0"
-        penalty_val = int(best_score.late_penalty_percent) if (best_score and best_score.late_penalty_percent.is_integer()) else (best_score.late_penalty_percent if best_score else 0)
-        penalty_str = f"{penalty_val}%" if best_score and best_score.late_penalty_percent > 0 else "0%"
-        final_score_str = f"{best_score.final_score}" if best_score else "0.0"
-        max_score_str = f"{assignment.problem.total_marks}"
-        verdict_str = best_sub.verdict if best_sub else "Unsubmitted"
-        submitted_at_str = best_sub.created_at.strftime('%Y-%m-%d %H:%M:%S') if best_sub else "N/A"
+            raw_score_str = f"{round(total_raw, 1)}" if has_sub else "0.0"
+            penalty_str = "0%"
+            final_score_str = f"{round(total_final, 1)}" if has_sub else "0.0"
+            max_score_str = f"{assignment.total_marks}"
+            verdict_str = "AC" if any(s.verdict == "AC" for s in subs) else (subs[0].verdict if subs else "Unsubmitted")
+            submitted_at_str = subs[0].created_at.strftime('%Y-%m-%d %H:%M:%S') if subs else "N/A"
+        else:
+            best_score = None
+            best_sub = None
+            for s in subs:
+                if s.score is not None:
+                    if best_score is None or s.score.final_score > best_score.final_score:
+                        best_score = s.score
+                        best_sub = s
+
+            raw_score_str = f"{best_score.raw_score}" if best_score else "0.0"
+            penalty_val = int(best_score.late_penalty_percent) if (best_score and best_score.late_penalty_percent.is_integer()) else (best_score.late_penalty_percent if best_score else 0)
+            penalty_str = f"{penalty_val}%" if best_score and best_score.late_penalty_percent > 0 else "0%"
+            final_score_str = f"{best_score.final_score}" if best_score else "0.0"
+            max_score_str = f"{assignment.total_marks}"
+            verdict_str = best_sub.verdict if best_sub else "Unsubmitted"
+            submitted_at_str = best_sub.created_at.strftime('%Y-%m-%d %H:%M:%S') if best_sub else "N/A"
 
         writer.writerow([
             student.roll_no or "N/A",

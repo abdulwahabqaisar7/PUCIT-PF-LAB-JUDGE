@@ -18,7 +18,11 @@
             <span class="badge bg-dark font-monospace fs-6 ms-2">{{ classroom.code }}</span>
         </h3>
         <p class="text-muted small mt-1 mb-0">
-            Problem: <strong>{{ assignment.problem.title }}</strong> ({{ assignment.problem.total_marks }} max marks)
+            {% if assignment.problems|length > 1 %}
+                Problems: <strong>{{ assignment.problems|length }} problems</strong> ({{ assignment.total_marks }} max marks)
+            {% else %}
+                Problem: <strong>{{ assignment.problems[0].title if assignment.problems else (assignment.problem.title if assignment.problem else 'N/A') }}</strong> ({{ assignment.total_marks }} max marks)
+            {% endif %}
             &bull; Due: {{ assignment.due_date.strftime('%Y-%m-%d %H:%M UTC') if assignment.due_date else 'No deadline' }}
         </p>
     </div>
@@ -67,7 +71,7 @@
     <div class="col-6 col-md-3">
         <div class="card border-0 shadow-sm text-center py-3">
             <div class="text-muted small text-uppercase fw-bold">Average Score</div>
-            <div class="fs-3 fw-bold text-info mt-1">{{ avg_score }} <span class="fs-6 text-muted">/ {{ assignment.problem.total_marks }}</span></div>
+            <div class="fs-3 fw-bold text-info mt-1">{{ avg_score }} <span class="fs-6 text-muted">/ {{ assignment.total_marks }}</span></div>
         </div>
     </div>
 </div>
@@ -78,7 +82,7 @@
         <h5 class="mb-0 fw-bold">
             <i class="bi bi-people me-2 text-primary"></i>Student Performance Roster
         </h5>
-        <span class="text-muted small">Max Marks: <strong>{{ assignment.problem.total_marks }}</strong></span>
+        <span class="text-muted small">Max Marks: <strong>{{ assignment.total_marks }}</strong></span>
     </div>
     <div class="card-body p-0">
         {% if student_rows %}
@@ -131,7 +135,7 @@
                                 </td>
                                 <td class="text-center">
                                     {% if row.best_score %}
-                                        {% if row.best_score.final_score >= assignment.problem.total_marks %}
+                                        {% if row.best_score.final_score >= assignment.total_marks %}
                                             <span class="badge bg-success fs-6">{{ row.best_score.final_score }}</span>
                                         {% elif row.best_score.final_score > 0 %}
                                             <span class="badge bg-warning text-dark fs-6">{{ row.best_score.final_score }}</span>

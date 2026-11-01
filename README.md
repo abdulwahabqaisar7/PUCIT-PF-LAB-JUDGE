@@ -8,8 +8,14 @@ A production-grade, offline-first programming judge web application built with *
 
 - **100% Offline LAN Operation:** Zero runtime external network calls. Bootstrap 5, Bootstrap Icons, and CodeMirror 5 are completely bundled locally in `/static/`.
 - **Two Roles with Server-Side Enforcement:**
-  - **Teacher:** Create/manage problems, test cases (visible vs. hidden), bulk-import students via CSV, create assignments with deadlines and late penalties, view consolidated gradebook matrices, download CSV reports, trigger rejudges, and inspect immutable audit logs.
-  - **Student:** Sign in with Roll Number or Username, change password on first login, solve problems in an embedded CodeMirror editor, submit code (C, C++, Python), track evaluation with live 2-second background polling, and review past submissions with strict hidden test privacy.
+  - **Teacher:** Create/manage problems, test cases (visible vs. hidden), bulk-import students via CSV, create single or multi-problem assignments with deadlines and late penalties, view consolidated gradebook matrices, download CSV reports, trigger rejudges, and inspect immutable audit logs.
+  - **Student:** Sign in with Roll Number or Username, change password on first login, navigate multi-problem assignments with quick problem switcher tabs, solve problems in an embedded CodeMirror editor, submit code (C, C++, Python), track evaluation with live 2-second background polling, and review past submissions with strict hidden test privacy.
+- **Multi-Problem Assignments:**
+  - Assignments support linking 1 or more problems in a defined sequence with automatic backward compatibility.
+  - Students view an assignment overview showing per-problem attempts, best verdicts, and points earned.
+  - Rapid problem switcher toolbar (`P1`, `P2`, ...) inside the solver portal allows switching between problems in the same assignment without leaving the editor.
+  - Per-problem submission scoping: attempt limits (`max_attempts`) are enforced independently per problem.
+  - Gradebooks and CSV exports automatically compute total possible marks and student earned scores as the sum across all problems in that assignment.
 - **Robust Sandboxed Execution Engine:**
   - Isolated Linux worker daemon polling an atomic FIFO queue.
   - Hardened sandboxing using Linux **bubblewrap (`bwrap`)**: no network access (`--unshare-net`), read-only filesystem mounts (`--ro-bind`), ephemeral tmpfs `/tmp`, non-root execution, process table isolation, and dropped Linux capabilities.
@@ -314,8 +320,3 @@ pytest -v
 - [x] **Hidden Test Data Privacy:** Server never transmits hidden test inputs, outputs, or diffs to students.
 - [x] **Stale Score Handling:** Test modifications increment problem version and mark old scores stale until rejudged.
 - [x] **Audit Logging:** Administrative actions, exports, imports, and rejudges recorded with IP addresses.
-
----
-
-## License
-MIT License. Built for offline academic computer science education and competitive programming.

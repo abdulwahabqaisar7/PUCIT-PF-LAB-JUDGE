@@ -36,7 +36,22 @@
                             <tr>
                                 <td><strong>{{ a.title }}</strong></td>
                                 <td><span class="badge bg-dark font-monospace">{{ a.classroom.code }}</span></td>
-                                <td>{{ a.problem.title }}</td>
+                                <td>
+                                    {% if a.problems|length == 1 %}
+                                        {{ a.problems[0].title }}
+                                        <span class="badge bg-light text-dark border small ms-1">{{ a.total_marks }} pts</span>
+                                    {% elif a.problems|length > 1 %}
+                                        <span class="badge bg-primary me-1">{{ a.problems|length }} Problems</span>
+                                        <span class="badge bg-light text-dark border small">{{ a.total_marks }} pts</span>
+                                        <div class="small text-muted mt-1">
+                                            {% for p in a.problems %}
+                                                <span class="badge bg-secondary font-monospace" style="font-size: 0.72rem;">{{ p.title }}</span>{% if not loop.last %} {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                    {% else %}
+                                        <span class="text-muted">No problems</span>
+                                    {% endif %}
+                                </td>
                                 <td class="small">{{ a.open_date.strftime('%Y-%m-%d %H:%M') if a.open_date else '' }}</td>
                                 <td class="small">{{ a.due_date.strftime('%Y-%m-%d %H:%M') if a.due_date else '' }}</td>
                                 <td>

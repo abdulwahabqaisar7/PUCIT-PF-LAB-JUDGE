@@ -7,6 +7,7 @@ from wtforms import (
     FloatField,
     IntegerField,
     SelectField,
+    SelectMultipleField,
     StringField,
     SubmitField,
     TextAreaField,
@@ -93,7 +94,8 @@ class StudentImportForm(FlaskForm):
 class AssignmentForm(FlaskForm):
     """Form to create or edit an Assignment."""
     class_id = SelectField("Class", coerce=int, validators=[DataRequired()])
-    problem_id = SelectField("Problem", coerce=int, validators=[DataRequired()])
+    problem_ids = SelectMultipleField("Problems in Assignment", coerce=int, validators=[Optional()])
+    problem_id = SelectField("Problem", coerce=int, validators=[Optional()])
     title = StringField("Assignment Title", validators=[DataRequired(), Length(max=128)])
     open_date = DateTimeLocalField("Open Date & Time", format=["%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"], validators=[DataRequired()])
     due_date = DateTimeLocalField("Due Date & Time", format=["%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"], validators=[DataRequired()])

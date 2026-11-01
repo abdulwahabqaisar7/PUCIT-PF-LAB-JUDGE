@@ -78,16 +78,31 @@ def assignments():
     # Attach student's submission count and best score for each assignment
     assignment_stats = {}
     for a in all_assignments:
-        subs = (
+        all_subs = (
             Submission.query.filter_by(user_id=current_user.id, assignment_id=a.id)
             .order_by(Submission.created_at.desc())
             .all()
         )
-        scores = [s.score.final_score for s in subs if s.score is not None]
-        best_score = max(scores) if scores else None
-        latest_verdict = subs[0].verdict if subs else None
+        latest_verdict = all_subs[0].verdict if all_subs else None
+        problems = a.problems
+        if problems:
+            has_any_score = False
+            total_best_score = 0.0
+            for p in problems:
+                p_scores = [
+                    s.score.final_score for s in all_subs
+                    if s.problem_id == p.id and s.score is not None
+                ]
+                if p_scores:
+                    has_any_score = True
+                    total_best_score += max(p_scores)
+            best_score = round(total_best_score, 1) if has_any_score else None
+        else:
+            scores = [s.score.final_score for s in all_subs if s.score is not None]
+            best_score = max(scores) if scores else None
+
         assignment_stats[a.id] = {
-            "attempts": len(subs),
+            "attempts": len(all_subs),
             "best_score": best_score,
             "latest_verdict": latest_verdict,
         }
@@ -99,15 +114,10 @@ def assignments():
     )
 
 
-# ==============================================================================
-# PROBLEM SOLVING & SUBMISSION
-# ==============================================================================
-
-@student_bp.route("/assignments/<int:assignment_id>/problem", methods=["GET", "POST"])
-@limiter.limit("20 per minute", methods=["POST"])
+@student_bp.route("/assignments/<int:assignment_id>")
 @student_required
-def assignment_problem(assignment_id: int):
-    """Problem statement view and submission portal for a specific assignment."""
+def assignment_detail(assignment_id: int):
+    """Assignment overview listing all problems in the assignment with per-problem progress."""
     assignment = db.session.get(Assignment, assignment_id)
     if not assignment:
         abort(404)
@@ -117,7 +127,71 @@ def assignment_problem(assignment_id: int):
     if not enrolled:
         abort(403, description="You are not enrolled in the class for this assignment.")
 
-    problem = assignment.problem
+    problems = assignment.problems
+    problem_stats = []
+    total_earned = 0.0
+
+    for prob in problems:
+        subs = (
+            Submission.query.filter_by(
+                user_id=current_user.id,
+                assignment_id=assignment.id,
+                problem_id=prob.id,
+            )
+            .order_by(Submission.created_at.desc())
+            .all()
+        )
+        scores = [s.score.final_score for s in subs if s.score is not None]
+        best_score = max(scores) if scores else None
+        latest_verdict = subs[0].verdict if subs else None
+        if best_score is not None:
+            total_earned += best_score
+
+        problem_stats.append({
+            "problem": prob,
+            "attempts": len(subs),
+            "latest_verdict": latest_verdict,
+            "best_score": best_score,
+        })
+
+    return render_template(
+        "student/assignment_detail.html",
+        assignment=assignment,
+        problem_stats=problem_stats,
+        total_earned=round(total_earned, 1),
+    )
+
+
+# ==============================================================================
+# PROBLEM SOLVING & SUBMISSION
+# ==============================================================================
+
+@student_bp.route("/assignments/<int:assignment_id>/problem", methods=["GET", "POST"])
+@student_bp.route("/assignments/<int:assignment_id>/problems/<int:problem_id>", methods=["GET", "POST"])
+@limiter.limit("20 per minute", methods=["POST"])
+@student_required
+def assignment_problem(assignment_id: int, problem_id: int | None = None):
+    """Problem statement view and submission portal for a specific assignment problem."""
+    assignment = db.session.get(Assignment, assignment_id)
+    if not assignment:
+        abort(404)
+
+    # Verify student is enrolled in the class offering this assignment
+    enrolled = Enrollment.query.filter_by(user_id=current_user.id, class_id=assignment.class_id).first()
+    if not enrolled:
+        abort(403, description="You are not enrolled in the class for this assignment.")
+
+    problems = assignment.problems
+    if not problems:
+        abort(404, description="No problems associated with this assignment.")
+
+    if problem_id is not None:
+        problem = next((p for p in problems if p.id == problem_id), None)
+        if not problem:
+            abort(404, description="Problem not found in this assignment.")
+    else:
+        problem = problems[0]
+
     now = utc_now()
 
     # Check assignment availability
@@ -140,11 +214,15 @@ def assignment_problem(assignment_id: int):
         notice_message = f"Deadline has passed ({assignment.due_date.strftime('%Y-%m-%d %H:%M UTC')}). Late submission penalty of {assignment.late_penalty_percent}% will be applied."
         notice_type = "warning"
 
-    # Check max attempts limit
-    attempts_made = Submission.query.filter_by(user_id=current_user.id, assignment_id=assignment.id).count()
+    # Check max attempts limit for this specific problem
+    attempts_made = Submission.query.filter_by(
+        user_id=current_user.id,
+        assignment_id=assignment.id,
+        problem_id=problem.id,
+    ).count()
     if assignment.max_attempts > 0 and attempts_made >= assignment.max_attempts:
         can_submit = False
-        notice_message = f"You have reached the maximum allowed attempts ({assignment.max_attempts}) for this assignment."
+        notice_message = f"You have reached the maximum allowed attempts ({assignment.max_attempts}) for this problem."
         notice_type = "warning"
 
     form = CodeSubmissionForm()

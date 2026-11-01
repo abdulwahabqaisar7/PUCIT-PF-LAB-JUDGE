@@ -71,9 +71,28 @@
                 <nav aria-label="breadcrumb">
                     <ol class="breadcrumb mb-2">
                         <li class="breadcrumb-item"><a href="{{ url_for('student.assignments') }}">Assignments</a></li>
-                        <li class="breadcrumb-item active">{{ assignment.title or problem.title }}</li>
+                        <li class="breadcrumb-item"><a href="{{ url_for('student.assignment_detail', assignment_id=assignment.id) }}">{{ assignment.title }}</a></li>
+                        <li class="breadcrumb-item active">{{ problem.title }}</li>
                     </ol>
                 </nav>
+
+                {% if assignment.problems|length > 1 %}
+                    <div class="p-2 mb-3 bg-light rounded border d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <span class="small fw-bold text-muted"><i class="bi bi-collection me-1"></i>Problems:</span>
+                        <div class="btn-group btn-group-sm flex-wrap">
+                            {% for p in assignment.problems %}
+                                <a href="{{ url_for('student.assignment_problem', assignment_id=assignment.id, problem_id=p.id) }}"
+                                   class="btn {% if p.id == problem.id %}btn-primary fw-bold{% else %}btn-outline-secondary bg-white{% endif %}">
+                                    P{{ loop.index }}: {{ p.title }}
+                                    <span class="badge {% if p.id == problem.id %}bg-light text-dark{% else %}bg-secondary{% endif %} ms-1">{{ p.total_marks }} pts</span>
+                                </a>
+                            {% endfor %}
+                        </div>
+                        <a href="{{ url_for('student.assignment_detail', assignment_id=assignment.id) }}" class="btn btn-sm btn-outline-info">
+                            <i class="bi bi-list-task me-1"></i> Overview
+                        </a>
+                    </div>
+                {% endif %}
 
                 <h3 class="card-title fw-bold text-dark mb-2">{{ problem.title }}</h3>
                 <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
