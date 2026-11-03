@@ -1,7 +1,7 @@
 """Database seeder script for CPJudge.
 
 Seeds:
-- 1 Teacher (Abdul Wahab Qaisar)
+- 1 Teacher (Prof. Alan Turing)
 - 3 Demo Students (Alice, Bob, Charlie)
 - 1 Class (CS101-FA24) with enrollments
 - 1 Problem ('Sum of Two Numbers') with 4 test cases (2 visible, 2 hidden)
@@ -37,12 +37,12 @@ def seed_database(drop_existing: bool = False) -> None:
         db.create_all()
 
         # 1. Teacher Account
-        teacher = User.query.filter_by(username="Abdul Wahab Qaisar").first()
+        teacher = User.query.filter_by(username="teacher").first()
         if not teacher:
             print("Creating Teacher account (teacher)...")
             teacher = User(
-                username="Abdul Wahab Qaisar",
-                name="Abdul Wahab Qaisar",
+                username="teacher",
+                name="Prof. Alan Turing",
                 role="teacher",
                 force_password_change=False,
             )
@@ -325,7 +325,7 @@ Print a single integer: the product $A \\times B$.
         db.session.commit()
         print("\nDatabase seeded successfully!")
         print("--------------------------------------------------")
-        print("Teacher Account:   Abdul Wahab Qaisar/ Teacher@123")
+        print("Teacher Account:   teacher     / Teacher@123")
         print("Student Account 1: bcsf20m001  / Student@123")
         print("Student Account 2: bcsf20m002  / Student@123")
         print("Student Account 3: bcsf20m003  / Student@123 (Force pwd change)")
