@@ -5,22 +5,35 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+def normalize_db_url(url: str | None) -> str | None:
+    """Normalizes database connection URL for SQLAlchemy (e.g. postgres:// -> postgresql://)."""
+    if not url:
+        return None
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql://", 1)
+    return url
+
+
+def get_default_db_uri() -> str:
+    """Returns PostgreSQL URI if DATABASE_URL is set, else SQLite instance file URI."""
+    raw = os.environ.get("DATABASE_URL")
+    if raw:
+        return normalize_db_url(raw)
+    instance_dir = BASE_DIR / "instance"
+    instance_dir.mkdir(parents=True, exist_ok=True)
+    return f"sqlite:///{instance_dir / 'cpjudge.db'}"
+
+
 class Config:
     """Base configuration."""
-    SECRET_KEY = os.environ.get("SECRET_KEY", "cpjudge-insecure-dev-secret-key-change-in-production")
 
-    # Database configuration (SQLite default, PostgreSQL swappable via DATABASE_URL)
-    raw_db_url = os.environ.get("DATABASE_URL")
-    if raw_db_url:
-        # SQLAlchemy 1.4+ requires 'postgresql://' instead of legacy 'postgres://'
-        if raw_db_url.startswith("postgres://"):
-            raw_db_url = raw_db_url.replace("postgres://", "postgresql://", 1)
-        SQLALCHEMY_DATABASE_URI = raw_db_url
-    else:
-        # SQLite instance directory
-        instance_dir = BASE_DIR / "instance"
-        instance_dir.mkdir(parents=True, exist_ok=True)
-        SQLALCHEMY_DATABASE_URI = f"sqlite:///{instance_dir / 'cpjudge.db'}"
+    @property
+    def SECRET_KEY(self) -> str:
+        return os.environ.get("SECRET_KEY", "cpjudge-insecure-dev-secret-key-change-in-production")
+
+    @property
+    def SQLALCHEMY_DATABASE_URI(self) -> str:
+        return get_default_db_uri()
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
@@ -46,6 +59,28 @@ class Config:
     APP_TIMEZONE = os.environ.get("APP_TIMEZONE", "Asia/Karachi")
     TIMEZONE_LABEL = "PKT"
 
+    # Reverse proxy, SSL, and session cookie security
+    @property
+    def USE_PROXY_FIX(self) -> bool:
+        return os.environ.get("USE_PROXY_FIX", "false").lower() in ("true", "1", "yes")
+
+    @property
+    def SESSION_COOKIE_SECURE(self) -> bool:
+        return os.environ.get("SESSION_COOKIE_SECURE", "false").lower() in ("true", "1", "yes")
+
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+
+    @property
+    def REMEMBER_COOKIE_SECURE(self) -> bool:
+        return self.SESSION_COOKIE_SECURE
+
+    REMEMBER_COOKIE_HTTPONLY = True
+
+    @property
+    def PREFERRED_URL_SCHEME(self) -> str:
+        return os.environ.get("PREFERRED_URL_SCHEME", "http")
+
 
 class DevelopmentConfig(Config):
     DEBUG = True
@@ -53,18 +88,37 @@ class DevelopmentConfig(Config):
 
 class TestingConfig(Config):
     TESTING = True
-    SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     WTF_CSRF_ENABLED = False
     RATELIMIT_ENABLED = False
+
+    @property
+    def SQLALCHEMY_DATABASE_URI(self) -> str:
+        return "sqlite:///:memory:"
 
 
 class ProductionConfig(Config):
     DEBUG = False
-    # In production, require an explicit SECRET_KEY
-    SECRET_KEY = os.environ.get("SECRET_KEY")
-    if not SECRET_KEY:
-        # Generate persistent warning or require key
-        SECRET_KEY = "cpjudge-production-secret-change-immediately"
+
+    @property
+    def SECRET_KEY(self) -> str:
+        return os.environ.get("SECRET_KEY", "cpjudge-production-secret-change-immediately")
+
+    # HTTPS and Reverse Proxy defaults for production internet deployment
+    @property
+    def PREFERRED_URL_SCHEME(self) -> str:
+        return os.environ.get("PREFERRED_URL_SCHEME", "https")
+
+    @property
+    def SESSION_COOKIE_SECURE(self) -> bool:
+        return os.environ.get("SESSION_COOKIE_SECURE", "false").lower() in ("true", "1", "yes")
+
+    @property
+    def REMEMBER_COOKIE_SECURE(self) -> bool:
+        return self.SESSION_COOKIE_SECURE
+
+    @property
+    def USE_PROXY_FIX(self) -> bool:
+        return os.environ.get("USE_PROXY_FIX", "false").lower() in ("true", "1", "yes")
 
 
 config_by_name = {

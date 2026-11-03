@@ -1,0 +1,34 @@
+# Caddyfile for CPJudge Internet Reverse Proxy & Automated HTTPS
+#
+# Replace DOMAIN in your .env.production file (e.g., DOMAIN=judge.mydomain.edu.pk)
+# Caddy will automatically obtain and renew free Let's Encrypt SSL/TLS certificates.
+
+{$DOMAIN:localhost} {
+    # Reverse proxy to the internal Gunicorn web application
+    reverse_proxy web:5000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    # Max request body size (matches Flask MAX_CONTENT_LENGTH of 16 MB)
+    request_body {
+        max_size 16MB
+    }
+
+    # Access logs
+    log {
+        output stdout
+        format console
+    }
+}

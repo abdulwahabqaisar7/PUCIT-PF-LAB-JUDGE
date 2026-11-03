@@ -30,13 +30,27 @@ def create_app(config_name: str | None = None) -> Flask:
 
     app = Flask(__name__)
     config_class = config_by_name.get(config_name, config_by_name["default"])
-    app.config.from_object(config_class)
+    config_obj = config_class() if isinstance(config_class, type) else config_class
+    app.config.from_object(config_obj)
 
     # Initialize extensions
     db.init_app(app)
     login_manager.init_app(app)
     csrf.init_app(app)
     limiter.init_app(app)
+
+    # Enable ProxyFix middleware if behind reverse proxy (Nginx, Caddy, Cloudflare Tunnel)
+    if app.config.get("USE_PROXY_FIX"):
+        from werkzeug.middleware.proxy_fix import ProxyFix
+
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app,
+            x_for=1,
+            x_proto=1,
+            x_host=1,
+            x_port=1,
+            x_prefix=1,
+        )
 
     # Register blueprints
     from cpjudge.auth import auth_bp
